@@ -1200,18 +1200,6 @@ func (hs *serverHandshakeStateTLS13) sendSessionTickets() error {
 func (hs *serverHandshakeStateTLS13) processClientCertificatePart1(msg any) ([]byte, error) {
 	c := hs.c
 
-	if !hs.requestClientCert() {
-		// Make sure the connection is still being verified whether or not
-		// the server requested a client certificate.
-		if c.config.VerifyConnection != nil {
-			if err := c.config.VerifyConnection(c.connectionStateLocked()); err != nil {
-				return c.sendAlert2(alertBadCertificate), err
-			}
-		}
-		hs.stage = ReadClientFinished
-		return nil, nil
-	}
-
 	// If we requested a client certificate, then the client must send a
 	// certificate message. If it's empty, no CertificateVerify is sent.
 
@@ -1395,6 +1383,7 @@ func (hs *serverHandshakeStateTLS13) processClientFinished(msg any) ([]byte, err
 	}
 
 	c.in.setTrafficSecret(hs.suite, hs.trafficSecret)
+
 	hs.stage = HandshakeFinished
 	atomic.StoreUint32(&c.handshakeStatus, 1)
 	return nil, nil

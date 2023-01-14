@@ -776,6 +776,7 @@ func (c *Conn) readRecordOrCCS(expectChangeCipherSpec bool) error {
 // retryReadRecord recurs into readRecordOrCCS to drop a non-advancing record, like
 // a warning alert, empty application_data, or a change_cipher_spec in TLS 1.3.
 func (c *Conn) retryReadRecord(expectChangeCipherSpec bool) error {
+	// FIXME: 这个检查重试次数的逻辑丢了
 	c.retryCount++
 	if c.retryCount > maxUselessRecords {
 		c.sendAlert(alertUnexpectedMessage)

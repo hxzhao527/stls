@@ -160,8 +160,6 @@ func (c *Conn) processOneRecord() (got, send []byte, err error) {
 	// record被切走了
 	c.resetFirstRecord()
 
-	fmt.Printf("record类型 %d\n", recordType(record[0]))
-
 	data, typ, err := c.in.decrypt(record)
 	if err != nil {
 		return nil, c.sendAlert2(err.(alert)), c.in.setErrorLocked(&net.OpError{Op: "local error", Err: err})
@@ -346,7 +344,6 @@ func (c *Conn) handleHandshake2(n int) (got []byte, send []byte, err error) {
 
 	data := c.hand.Next(4 + n) // header: typ(1B) + length(3B)
 	var m handshakeMessage
-	fmt.Printf("handshakeMessage类型 %d\n", data[0])
 	switch data[0] {
 	case typeHelloRequest:
 		m = new(helloRequestMsg)
@@ -701,14 +698,22 @@ func (hs *serverHandshakeStateTLS13) dohHandshake(msg any) (got []byte, send []b
 
 	switch hs.stage {
 	case ProcessClientHello:
-		fmt.Printf("开始处理client-hello\n")
 		send, err = hs.processClientHelloPart1()
 	case ReadSecondClientHello:
-		fmt.Printf("还得再处理一次client-hello\n")
 		send, err = hs.processClientHelloPart2(msg)
 	// -------
 	case PostProcessClientHello:
-		fmt.Printf("server-hello相关数据已经发送, 开始处理客户端证书\n")
+		if !hs.requestClientCert() {
+			// Make sure the connection is still being verified whether or not
+			// the server requested a client certificate.
+			if hs.c.config.VerifyConnection != nil {
+				if err := hs.c.config.VerifyConnection(hs.c.connectionStateLocked()); err != nil {
+					return nil, hs.c.sendAlert2(alertBadCertificate), err
+				}
+			}
+			hs.stage = ReadClientFinished
+			return hs.dohHandshake(msg) // 这时的msg是finishedMsg
+		}
 		send, err = hs.processClientCertificatePart1(msg)
 	case ReadClientCertificateVerify:
 		send, err = hs.readClientCertificatePart2(msg)
@@ -721,4 +726,33 @@ func (hs *serverHandshakeStateTLS13) dohHandshake(msg any) (got []byte, send []b
 		return nil, hs.c.sendAlert2(alertUnexpectedMessage), errors.New("内部状态不太对")
 	}
 	return
+}
+
+func (c *Conn) Out(b []byte) (send []byte, err error) {
+	c.out.Lock()
+	defer c.out.Unlock()
+
+	if err := c.out.err; err != nil {
+		return nil, err
+	}
+
+	if !c.handshakeComplete() {
+		return nil, alertInternalError
+	}
+
+	if c.closeNotifySent {
+		return nil, errShutdown
+	}
+
+	// var m int
+	if len(b) > 1 && c.vers == VersionTLS10 {
+		// if _, ok := c.out.cipher.(cipher.BlockMode); ok {
+		// 	n, err := c.writeRecordLocked(recordTypeApplicationData, b[:1])
+		// 	if err != nil {
+		// 		return n, c.out.setErrorLocked(err)
+		// 	}
+		// 	m, b = 1, b[1:]
+		// }
+	}
+	return c.marshalRecord(recordTypeApplicationData, b)
 }

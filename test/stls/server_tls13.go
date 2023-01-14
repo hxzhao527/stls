@@ -1,9 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"io"
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 
@@ -11,6 +14,7 @@ import (
 )
 
 func main() {
+
 	cer, err := stls.LoadX509KeyPair("../server.crt", "../server.key")
 	if err != nil {
 		log.Println(err)
@@ -67,6 +71,32 @@ func process(ctx context.Context, conn net.Conn, conf *stls.Config) {
 		}
 		if len(got) != 0 {
 			log.Printf("got %s", string(got))
+
+			output, err := tls.Out(response)
+			if err != nil {
+				log.Printf("encrypt failed: %s", err)
+				continue
+			}
+			conn.Write(output)
+			return
 		}
 	}
+}
+
+var response []byte
+
+func init() {
+	var buf bytes.Buffer
+	header := http.Header{}
+	header.Set("Server", "Self-TLS")
+	resp := http.Response{
+		Status:     http.StatusText(http.StatusOK),
+		StatusCode: http.StatusOK,
+		ProtoMajor: 1,
+		ProtoMinor: 1,
+		Body:       io.NopCloser(bytes.NewBufferString("Hello World")),
+		Header:     header,
+	}
+	resp.Write(&buf)
+	response = buf.Bytes()
 }

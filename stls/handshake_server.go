@@ -38,7 +38,10 @@ type serverHandshakeState struct {
 	cert         *Certificate
 
 	// NOTICE
-	stage int
+	stage           int
+	preKeyAgreement keyAgreement
+	prePubKey       crypto.PublicKey
+	preCertReq      *certificateRequestMsg
 }
 
 // serverHandshake performs a TLS handshake as a server.
@@ -799,61 +802,6 @@ func (hs *serverHandshakeState) sendFinished(out []byte) error {
 	copy(out, finished.verifyData)
 
 	return nil
-}
-
-func (c *Conn) processCertsFromClient2(certificate Certificate) ([]byte, error) {
-	certificates := certificate.Certificate
-	certs := make([]*x509.Certificate, len(certificates))
-	var err error
-	for i, asn1Data := range certificates {
-		if certs[i], err = x509.ParseCertificate(asn1Data); err != nil {
-			return c.sendAlert2(alertBadCertificate), errors.New("tls: failed to parse client certificate: " + err.Error())
-		}
-	}
-
-	if len(certs) == 0 && requiresClientCert(c.config.ClientAuth) {
-		return c.sendAlert2(alertBadCertificate), errors.New("tls: client didn't provide a certificate")
-	}
-
-	if c.config.ClientAuth >= VerifyClientCertIfGiven && len(certs) > 0 {
-		opts := x509.VerifyOptions{
-			Roots:         c.config.ClientCAs,
-			CurrentTime:   c.config.time(),
-			Intermediates: x509.NewCertPool(),
-			KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
-		}
-
-		for _, cert := range certs[1:] {
-			opts.Intermediates.AddCert(cert)
-		}
-
-		chains, err := certs[0].Verify(opts)
-		if err != nil {
-			return c.sendAlert2(alertBadCertificate), errors.New("tls: failed to verify client certificate: " + err.Error())
-		}
-
-		c.verifiedChains = chains
-	}
-
-	c.peerCertificates = certs
-	c.ocspResponse = certificate.OCSPStaple
-	c.scts = certificate.SignedCertificateTimestamps
-
-	if len(certs) > 0 {
-		switch certs[0].PublicKey.(type) {
-		case *ecdsa.PublicKey, *rsa.PublicKey, ed25519.PublicKey:
-		default:
-			return c.sendAlert2(alertUnsupportedCertificate), fmt.Errorf("tls: client certificate contains an unsupported public key of type %T", certs[0].PublicKey)
-		}
-	}
-
-	if c.config.VerifyPeerCertificate != nil {
-		if err := c.config.VerifyPeerCertificate(certificates, c.verifiedChains); err != nil {
-			return c.sendAlert2(alertBadCertificate), err
-		}
-	}
-
-	return nil, nil
 }
 
 // processCertsFromClient takes a chain of client certificates either from a

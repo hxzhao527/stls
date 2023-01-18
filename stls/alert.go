@@ -14,6 +14,7 @@ const (
 	alertLevelError   = 2
 )
 
+// https://www.gnutls.org/manual/html_node/The-TLS-Alert-Protocol.html
 const (
 	alertCloseNotify                  alert = 0
 	alertUnexpectedMessage            alert = 10

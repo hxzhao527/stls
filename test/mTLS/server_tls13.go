@@ -3,7 +3,9 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/x509"
 	"io"
+	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -14,15 +16,26 @@ import (
 )
 
 func main() {
+	caCertPool := x509.NewCertPool()
+	caCertFile, err := ioutil.ReadFile("ca.crt")
+	if err != nil {
+		log.Fatalf("加载ca失败了 %s", err)
+	}
+	caCertPool.AppendCertsFromPEM(caCertFile)
 
-	cer, err := stls.LoadX509KeyPair("../server.crt", "../server.key")
+	cer, err := stls.LoadX509KeyPair("server.crt", "server.key")
 	if err != nil {
 		log.Println(err)
 		return
 	}
-	config := &stls.Config{Certificates: []stls.Certificate{cer}}
+	config := &stls.Config{
+		Certificates: []stls.Certificate{cer},
+		ClientCAs:    caCertPool,
+		MinVersion:   stls.VersionTLS13,
+		ClientAuth:   stls.RequireAndVerifyClientCert, // 声明需要客户端证书
+	}
 
-	listen, err := net.Listen("tcp", ":8443")
+	listen, err := net.Listen("tcp", "127.0.0.1:8443")
 	if err != nil {
 		log.Fatalf("listen error %s", err)
 	}
@@ -47,7 +60,7 @@ func process(ctx context.Context, conn net.Conn, conf *stls.Config) {
 	defer conn.Close()
 
 	log.Printf("got conn from %s", conn.RemoteAddr())
-	tls := stls.Server(conn, conf)
+	tls := stls.Server(nil, conf)
 
 	var buf [1024]byte
 
@@ -71,7 +84,6 @@ func process(ctx context.Context, conn net.Conn, conf *stls.Config) {
 		}
 		if len(got) != 0 {
 			log.Printf("got %s", string(got))
-
 			output, err := tls.Out(response)
 			if err != nil {
 				log.Printf("encrypt failed: %s", err)

@@ -14,7 +14,7 @@ import (
 )
 
 func main() {
-	cer, err := stls.LoadX509KeyPair("../server.crt", "../server.key")
+	cer, err := stls.LoadX509KeyPair("../cert-maker/certs/server.crt", "../cert-maker/certs/server.key")
 	if err != nil {
 		log.Println(err)
 		return
@@ -98,3 +98,14 @@ func init() {
 	resp.Write(&buf)
 	response = buf.Bytes()
 }
+
+/*
+1.3
+curl -v --cacert test/server.crt --tlsv1.3 --location  https://127.0.0.1:8443
+
+1.2
+curl -v --cacert test/server.crt --tlsv1.2 --tls-max 1.2  --location  https://127.0.0.1:8443
+
+1.1
+curl -v --cacert test/server.crt --tlsv1.1 --tls-max 1.1  --location  https://127.0.0.1:8443
+*/

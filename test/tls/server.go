@@ -3,25 +3,26 @@ package main
 import (
 	"bufio"
 	"bytes"
-	"crypto/tls"
 	"fmt"
 	"io"
 	"log"
 	"net"
 	"net/http"
+
+	"github.com/hxzhao527/stls/stls"
 )
 
 func main() {
 	log.SetFlags(log.Lshortfile)
 
-	cer, err := tls.LoadX509KeyPair("../server.crt", "../server.key")
+	cer, err := stls.LoadX509KeyPair("../cert-maker/certs/server.crt", "../cert-maker/certs/server.key")
 	if err != nil {
 		log.Println(err)
 		return
 	}
 
-	config := &tls.Config{Certificates: []tls.Certificate{cer}}
-	ln, err := tls.Listen("tcp", "127.0.0.1:8443", config)
+	config := &stls.Config{Certificates: []stls.Certificate{cer}}
+	ln, err := stls.Listen("tcp", "127.0.0.1:8443", config)
 	if err != nil {
 		log.Println(err)
 		return

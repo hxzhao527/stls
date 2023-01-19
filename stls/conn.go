@@ -123,9 +123,10 @@ type Conn struct {
 		n      int
 		typ    recordType
 	}
-	stage                int
-	handshakeServerTLS13 *serverHandshakeStateTLS13
-	handshakeServer      *serverHandshakeState
+	stage                  int
+	handshakeServerTLS13   *serverHandshakeStateTLS13
+	handshakeServer        *serverHandshakeState
+	expectChangeCipherSpec int32
 }
 
 // Access to net.Conn methods.

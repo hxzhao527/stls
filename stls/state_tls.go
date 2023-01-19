@@ -377,7 +377,7 @@ func (hs *serverHandshakeState) sendFinished2(out []byte) (send []byte, err erro
 
 	copy(out, finished.verifyData) // ??
 
-	return nil, nil
+	return buf.Bytes(), nil
 }
 func (hs *serverHandshakeState) pickCipherSuite2() (send []byte, err error) {
 	c := hs.c
@@ -528,7 +528,6 @@ func (hs *serverHandshakeState) postWriteServerHelloDonePart1(msg any) (send []b
 
 func (hs *serverHandshakeState) postWriteServerHelloDonePart2(msg any) (send []byte, err error) {
 	c := hs.c
-
 	if c.config.VerifyConnection != nil {
 		if err := c.config.VerifyConnection(c.connectionStateLocked()); err != nil {
 			return c.sendAlert2(alertBadCertificate), err
@@ -553,9 +552,8 @@ func (hs *serverHandshakeState) postWriteServerHelloDonePart2(msg any) (send []b
 	if len(c.peerCertificates) > 0 {
 		hs.stage = PostParseMasterSecret
 		return
-	} else {
-		return hs.beforeClientFinish()
 	}
+	return hs.beforeClientFinish()
 }
 
 func (hs *serverHandshakeState) postMasterSecretWhenHavePeerCert(msg any) (send []byte, err error) {
@@ -601,9 +599,11 @@ func (hs *serverHandshakeState) postMasterSecretWhenHavePeerCert(msg any) (send 
 
 func (hs *serverHandshakeState) beforeClientFinish() (send []byte, err error) {
 	hs.finishedHash.discardHandshakeBuffer()
+
 	if err := hs.establishKeys(); err != nil {
 		return hs.c.sendAlert2(alertInternalError), err
 	}
 	hs.stage = ReadClientFinished2
+	hs.c.expectChangeCipherSpec = 1
 	return nil, nil
 }

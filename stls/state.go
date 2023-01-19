@@ -16,7 +16,6 @@ import (
 )
 
 func (c *Conn) marshalRecord(typ recordType, data []byte) ([]byte, error) {
-	// fmt.Printf("record %d len %d\n", typ, len(data))
 	var buf bytes.Buffer
 
 	var n int
@@ -213,7 +212,8 @@ func (c *Conn) processOneRecord() (got, send []byte, err error) {
 	}
 
 	// MAYBUG: 非1.3部分是这个参数在readfinsh时会变为true, 即允许收到 CCS record
-	var expectChangeCipherSpec = (c.vers != VersionTLS13) && c.handshakeServer != nil && (c.handshakeServer.stage == ReadClientFinished1 || c.handshakeServer.stage == ReadClientFinished2)
+	// var expectChangeCipherSpec = (c.vers != VersionTLS13) && c.handshakeServer != nil && (c.handshakeServer.stage == ReadClientFinished1 || c.handshakeServer.stage == ReadClientFinished2)
+	var expectChangeCipherSpec = atomic.SwapInt32(&c.expectChangeCipherSpec, 0) > 0
 
 	switch typ {
 	default:
@@ -438,8 +438,9 @@ func (c *Conn) handleHandshake2(n int) (got []byte, send []byte, err error) {
 	// The handshake message unmarshalers
 	// expect to be able to keep references to data,
 	// so pass in a fresh copy that won't be overwritten.
-	// MAYBUG: 数据不再拷贝, 因为是一个函数处理过程, 前面已经写到buf中, 数据所有权就在这个状态机内部
-	// data = append([]byte(nil), data...)
+	// ~~MAYBUG: 数据不再拷贝, 因为是一个函数处理过程, 前面已经写到buf中, 数据所有权就在这个状态机内部~~
+	// WARN: 这个地方不copy, 会导致client-hello, 尤其是random值发生变化. 因此必须copy
+	data = append([]byte(nil), data...)
 
 	if !m.unmarshal(data) {
 		return nil, c.sendAlert2(alertUnexpectedMessage), c.in.setErrorLocked(&net.OpError{Op: "local error", Err: alertUnexpectedMessage})
@@ -460,7 +461,6 @@ func (c *Conn) doHandshake2(msg any) (got []byte, send []byte, err error) {
 			if err != nil {
 				return
 			}
-
 			if c.vers == VersionTLS13 {
 				c.handshakeServerTLS13 = &serverHandshakeStateTLS13{
 					c:           c,

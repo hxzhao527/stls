@@ -70,7 +70,6 @@ func (c *Conn) serverHandshake(ctx context.Context) error {
 
 func (hs *serverHandshakeState) handshake() error {
 	c := hs.c
-
 	if err := hs.processClientHello(); err != nil {
 		return err
 	}
@@ -626,7 +625,6 @@ func (hs *serverHandshakeState) doFullHandshake() error {
 		return unexpectedMessageError(ckx, msg)
 	}
 	hs.finishedHash.Write(ckx.marshal())
-
 	preMasterSecret, err := keyAgreement.processClientKeyExchange(c.config, hs.cert, ckx, c.vers)
 	if err != nil {
 		c.sendAlert(alertHandshakeFailure)
